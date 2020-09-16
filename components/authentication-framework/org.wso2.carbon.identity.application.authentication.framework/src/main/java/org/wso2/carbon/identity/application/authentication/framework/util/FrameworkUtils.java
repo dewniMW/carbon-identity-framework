@@ -101,17 +101,20 @@ import org.wso2.carbon.identity.core.util.IdentityCoreConstants;
 import org.wso2.carbon.identity.core.util.IdentityDatabaseUtil;
 import org.wso2.carbon.identity.core.util.IdentityTenantUtil;
 import org.wso2.carbon.identity.core.util.IdentityUtil;
+import org.wso2.carbon.identity.event.IdentityEventConstants;
+import org.wso2.carbon.identity.event.IdentityEventException;
+import org.wso2.carbon.identity.event.event.Event;
+import org.wso2.carbon.identity.event.services.IdentityEventService;
 import org.wso2.carbon.identity.user.profile.mgt.association.federation.FederatedAssociationManager;
 import org.wso2.carbon.idp.mgt.IdentityProviderManagementException;
 import org.wso2.carbon.idp.mgt.IdentityProviderManager;
 import org.wso2.carbon.idp.mgt.IdpManager;
 import org.wso2.carbon.idp.mgt.util.IdPManagementUtil;
-import org.wso2.carbon.registry.core.utils.UUIDGenerator;
 import org.wso2.carbon.user.api.UserStoreException;
 import org.wso2.carbon.user.api.UserStoreManager;
+import org.wso2.carbon.user.core.UserCoreConstants;
 import org.wso2.carbon.user.core.common.AbstractUserStoreManager;
 import org.wso2.carbon.user.core.config.UserStorePreferenceOrderSupplier;
-import org.wso2.carbon.user.core.UserCoreConstants;
 import org.wso2.carbon.user.core.constants.UserCoreClaimConstants;
 import org.wso2.carbon.user.core.util.UserCoreUtil;
 import org.wso2.carbon.utils.multitenancy.MultitenantConstants;
@@ -140,6 +143,7 @@ import java.util.Set;
 import java.util.TreeMap;
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
+
 import javax.script.ScriptEngine;
 import javax.script.ScriptException;
 import javax.servlet.http.Cookie;
@@ -148,10 +152,9 @@ import javax.servlet.http.HttpServletResponse;
 
 import static org.wso2.carbon.identity.application.authentication.framework.util.FrameworkConstants.CONTEXT_PROP_INVALID_EMAIL_USERNAME;
 import static org.wso2.carbon.identity.application.authentication.framework.util.FrameworkConstants.Config.USER_SESSION_MAPPING_ENABLED;
-import static org.wso2.carbon.identity.application.authentication.framework.util.FrameworkConstants.REQUEST_PARAM_SP;
-import static org.wso2.carbon.identity.application.authentication.framework.util.FrameworkConstants.RequestParams.TENANT_DOMAIN;
 import static org.wso2.carbon.identity.application.authentication.framework.util.FrameworkConstants.InternalRoleDomains.APPLICATION_DOMAIN;
 import static org.wso2.carbon.identity.application.authentication.framework.util.FrameworkConstants.InternalRoleDomains.WORKFLOW_DOMAIN;
+import static org.wso2.carbon.identity.application.authentication.framework.util.FrameworkConstants.REQUEST_PARAM_SP;
 
 public class FrameworkUtils {
 
@@ -950,6 +953,80 @@ public class FrameworkUtils {
             }
         }
         return sessionContext;
+    }
+
+    /**
+     * Retrieve session context from the session cache.
+     *
+     * @param request           HttpServletRequest.
+     * @param context           Authentication context.
+     * @param sessionContextKey Session context key.
+     * @return Session context key.
+     * @throws FrameworkException Error in triggering session expire event.
+     */
+    public static SessionContext getSessionContextFromCache(HttpServletRequest request, AuthenticationContext context
+            , String sessionContextKey) throws FrameworkException {
+
+        SessionContext sessionContext = null;
+        if (StringUtils.isNotBlank(sessionContextKey)) {
+            SessionContextCacheKey cacheKey = new SessionContextCacheKey(sessionContextKey);
+            SessionContextCache sessionContextCache = SessionContextCache.getInstance();
+            SessionContextCacheEntry cacheEntry = sessionContextCache.getSessionContextCacheEntry(cacheKey);
+
+            if (cacheEntry != null) {
+                sessionContext = cacheEntry.getContext();
+                boolean isSessionExpired = sessionContextCache.isSessionExpired(cacheKey, cacheEntry);
+                if (isSessionExpired) {
+                    triggerSessionExpireEvent(request, context, sessionContext);
+                    if (log.isDebugEnabled()) {
+                        log.debug("A SESSION_EXPIRE event was fired for the expired session found corresponding " +
+                                "to the key: " + cacheKey.getContextId());
+                    }
+                    return null;
+                }
+            }
+        }
+        return sessionContext;
+    }
+
+    /**
+     * Trigger SESSION_EXPIRE event on session expiry due to a session idle timeout or a remember me session time out.
+     *
+     * @param request        HttpServletRequest.
+     * @param context        Authentication context.
+     * @param sessionContext Session context.
+     * @throws FrameworkException Error in triggering the session expiry event.
+     */
+    private static void triggerSessionExpireEvent(HttpServletRequest request, AuthenticationContext context,
+                                                  SessionContext sessionContext) throws FrameworkException {
+
+        AuthenticatedUser authenticatedUser = new AuthenticatedUser();
+        if (sessionContext != null) {
+            Object authenticatedUserObj = sessionContext.getProperty(FrameworkConstants.AUTHENTICATED_USER);
+            if (authenticatedUserObj instanceof AuthenticatedUser) {
+                authenticatedUser = (AuthenticatedUser) authenticatedUserObj;
+            }
+            context.setSubject(authenticatedUser);
+
+            IdentityEventService eventService = FrameworkServiceDataHolder.getInstance().getIdentityEventService();
+            try {
+                Map<String, Object> eventProperties = new HashMap<>();
+                eventProperties.put(IdentityEventConstants.EventProperty.REQUEST, request);
+                eventProperties.put(IdentityEventConstants.EventProperty.CONTEXT, context);
+                eventProperties.put(IdentityEventConstants.EventProperty.SESSION_CONTEXT, sessionContext);
+                Map<String, Object> paramMap = new HashMap<>();
+                paramMap.put(FrameworkConstants.AnalyticsAttributes.USER, authenticatedUser);
+                paramMap.put(FrameworkConstants.AnalyticsAttributes.SESSION_ID, context.getSessionIdentifier());
+                Map<String, Object> unmodifiableParamMap = Collections.unmodifiableMap(paramMap);
+                eventProperties.put(IdentityEventConstants.EventProperty.PARAMS, unmodifiableParamMap);
+
+                Event event = new Event(IdentityEventConstants.EventName.SESSION_EXPIRE.name(), eventProperties);
+                eventService.handleEvent(event);
+            } catch (IdentityEventException e) {
+                throw new FrameworkException("Error in triggering session expire event for the session: " +
+                        context.getSessionIdentifier() + " of user: " + authenticatedUser.toFullQualifiedUsername(), e);
+            }
+        }
     }
 
     /**
@@ -2034,12 +2111,23 @@ public class FrameworkUtils {
                 .getMandatoryClaimMappings();
         Map<String, String> missingClaims = new HashMap<>();
         for (Map.Entry<String, String> entry : mandatoryClaims.entrySet()) {
-            if (mappedAttrs.get(entry.getValue()) == null && mappedAttrs.get(entry.getKey()) == null) {
+            if (mappedAttrs.get(entry.getValue()) == null && mappedAttrs.get(entry.getKey()) == null &&
+                    getUserClaimValue(context, entry.getValue()) == null) {
                 missingClaims.put(entry.getKey(), entry.getValue());
             }
         }
 
         return missingClaims;
+    }
+
+    @SuppressWarnings("unchecked")
+    private static String getUserClaimValue(AuthenticationContext context, String localClaim) {
+
+        Object unFilteredLocalClaims = context.getProperty(FrameworkConstants.UNFILTERED_LOCAL_CLAIM_VALUES);
+        if (unFilteredLocalClaims instanceof Map) {
+            return ((Map<String, String>) unFilteredLocalClaims).get(localClaim);
+        }
+        return null;
     }
 
     /**
