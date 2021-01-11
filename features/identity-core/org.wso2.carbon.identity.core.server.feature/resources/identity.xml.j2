@@ -1120,6 +1120,11 @@
         <ResendConfirmationReCaptcha>{{identity_mgt.user_self_registration.enable_resend_confirmation_recaptcha}}</ResendConfirmationReCaptcha>
     </SelfRegistration>
 
+    <LoginIdentifiers>
+        <Enable>{{identity_mgt.login_identifiers.enable}}</Enable>
+        <PrimaryLoginIdentifier>{{identity_mgt.login_identifiers.primary_claim}}</PrimaryLoginIdentifier>
+    </LoginIdentifiers>
+
     <UserClaimUpdate>
         <Claim uri = "http://wso2.org/claims/emailaddress">
             <VerificationOnUpdate>
@@ -1601,6 +1606,23 @@
             <Scopes>internal_config_mgt_view</Scopes>
         </Resource>
         <Resource context="(.*)/api/identity/config-mgt/v1.0/resource/(.*)" secured="true" http-method="DELETE">
+            <Permissions>/permission/admin/manage/identity/configmgt/delete</Permissions>
+            <Scopes>internal_config_mgt_delete</Scopes>
+        </Resource>
+
+        <Resource context="(.*)/api/server/v1/notification-senders/(.*)" secured="true" http-method="POST">
+            <Permissions>/permission/admin/manage/identity/configmgt/add</Permissions>
+            <Scopes>internal_config_mgt_add</Scopes>
+        </Resource>
+        <Resource context="(.*)/api/server/v1/notification-senders/(.*)" secured="true" http-method="PUT">
+            <Permissions>/permission/admin/manage/identity/configmgt/update</Permissions>
+            <Scopes>internal_config_mgt_update</Scopes>
+        </Resource>
+        <Resource context="(.*)/api/server/v1/notification-senders/(.*)" secured="true" http-method="GET">
+            <Permissions>/permission/admin/manage/identity/configmgt/view</Permissions>
+            <Scopes>internal_config_mgt_view</Scopes>
+        </Resource>
+        <Resource context="(.*)/api/server/v1/notification-senders/(.*)" secured="true" http-method="DELETE">
             <Permissions>/permission/admin/manage/identity/configmgt/delete</Permissions>
             <Scopes>internal_config_mgt_delete</Scopes>
         </Resource>
@@ -2213,17 +2235,18 @@
         <Resource context="(.*)/accountrecoveryendpoint/confirmregistration.do(.*)" secured="false" http-method="GET, POST, HEAD"/>
         <Resource context="(.*)/accountrecoveryendpoint(.*)" secured="false" http-method="all"/>
         <Resource context="(.*)/api/health-check/v1(.*)" secured="false" http-method="all"/>
-        <Resource context="/emailotpauthenticationendpoint(.*)" secured="false" http-method="all"/>
+        <Resource context="(.*)/emailotpauthenticationendpoint(.*)" secured="false" http-method="all"/>
         <Resource context="/mex(.*)" secured="false" http-method="all"/>
         <Resource context="/mexut(.*)" secured="false" http-method="all"/>
-        <Resource context="/smsotpauthenticationendpoint(.*)" secured="false" http-method="all"/>
-        <Resource context="/totpauthenticationendpoint(.*)" secured="false" http-method="all"/>
+        <Resource context="(.*)/smsotpauthenticationendpoint(.*)" secured="false" http-method="all"/>
+        <Resource context="(.*)/totpauthenticationendpoint(.*)" secured="false" http-method="all"/>
         <Resource context="/x509certificateauthenticationendpoint(.*)" secured="false" http-method="all"/>
         <Resource context="/userandrolemgtservice(.*)" secured="false" http-method="all"/>
         <Resource context="/x509-certificate-servlet(.*)" secured="false" http-method="all"/>
         <Resource context="/mepinauthenticationendpoint(.*)" secured="false" http-method="all"/>
         <Resource context="(.*)/identity/cas(.*)" secured="false" http-method="all"/>
         <Resource context="(.*)/identity/saml/slo(.*)" secured="false" http-method="all"/>
+        <Resource context="(.*)/identity/extend-session(.*)" secured="false" http-method="all"/>
         <Resource context="/mobileconnectauthenticationendpoint(.*)" secured="false" http-method="all"/>
         <Resource context="/inweboauthenticationendpoint(.*)" secured="false" http-method="all"/>
         <Resource context="/token2authenticationendpoint(.*)" secured="false" http-method="all"/>

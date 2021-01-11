@@ -453,14 +453,8 @@ public class DefaultAuthenticationRequestHandler implements AuthenticationReques
                             authenticationContextProperties);
                 }
 
-                if (FrameworkServiceDataHolder.getInstance().isUserSessionMappingEnabled()) {
-                    try {
-                        UserSessionStore.getInstance().updateSessionMetaData(sessionContextKey, SessionMgtConstants
-                                .LAST_ACCESS_TIME, Long.toString(updatedSessionTime));
-                    } catch (UserSessionException e) {
-                        log.error("Updating session meta data failed.", e);
-                    }
-                }
+                FrameworkUtils.updateSessionLastAccessTimeMetadata(sessionContextKey, updatedSessionTime);
+
                 /*
                  * In the default configuration, the expiry time of the commonAuthCookie is fixed when rememberMe
                  * option is selected. With this config, the expiry time will increase at every authentication.
@@ -642,8 +636,7 @@ public class DefaultAuthenticationRequestHandler implements AuthenticationReques
 
                 // If the user is federated, generate a unique ID for the user and add an entry to the IDN_AUTH_USER
                 // table with the tenant id as -1 and user store domain as FEDERATED.
-                if (StringUtils.isBlank(FrameworkUtils.resolveUserIdFromUsername(tenantId, userStoreDomain, userName))
-                        && isFederatedUser(authenticatedIdPData.getUser())) {
+                if (isFederatedUser(authenticatedIdPData.getUser())) {
                     userId = UserSessionStore.getInstance().getUserId(userName, tenantId, userStoreDomain, idpId);
                     try {
                         if (userId == null) {
