@@ -595,7 +595,14 @@
 
         Default value: true
         -->
-        <EnableJWTTokenValidationDuringIntrospection>{{oauth.enable_jwt_token_validation_during_introspection}}</EnableJWTTokenValidationDuringIntrospection>
+        <EnableJWTTokenValidationDuringIntrospection>true</EnableJWTTokenValidationDuringIntrospection>
+
+        <!--
+        By enabling this config, any unregistered scopes(excluding internal scopes and allowed scopes)
+        passed in a OAuth based authz request will be dropped.
+        Default value : false
+        -->
+        <!--<DropUnregisteredScopes>true</DropUnregisteredScopes>-->
     </OAuth>
 
     <MultifactorAuthentication>
@@ -1660,7 +1667,11 @@
             <Permissions>/permission/admin/manage/identity/cors/origins/view</Permissions>
             <Scopes>internal_cors_origins_view</Scopes>
         </Resource>
-        <Resource context="(.*)/api/server/v1/configs" secured="true" http-method="GET">
+        <Resource context="(.*)/api/server/v1/configs/home-realm-identifiers" secured="true" http-method="GET">
+            <Permissions>none</Permissions>
+            <Scopes>internal_login</Scopes>
+        </Resource>
+        <Resource context="(.*)/api/server/v1/configs/(.*)" secured="true" http-method="GET">
             <Permissions>none</Permissions>
             <Scopes>internal_login</Scopes>
         </Resource>

@@ -18,6 +18,7 @@
 package org.wso2.carbon.identity.application.authentication.framework.util;
 
 import org.apache.commons.lang.StringUtils;
+import org.wso2.carbon.core.SameSiteCookie;
 import org.wso2.carbon.identity.application.authentication.framework.context.AuthenticationContext;
 import org.wso2.carbon.identity.core.util.IdentityUtil;
 import org.wso2.carbon.registry.core.utils.UUIDGenerator;
@@ -61,9 +62,10 @@ public class SessionNonceCookieUtil {
                                       AuthenticationContext context) {
 
         if (isNonceCookieEnabled()) {
+            removeExistingNonceCookies(request, response);
             String nonceId = UUIDGenerator.generateUUID();
             String cookieName = getNonceCookieName(context);
-            FrameworkUtils.setCookie(request, response, cookieName, nonceId, null);
+            FrameworkUtils.setCookie(request, response, cookieName, nonceId, null, SameSiteCookie.NONE);
             context.setProperty(cookieName, nonceId);
         }
     }
@@ -113,6 +115,26 @@ public class SessionNonceCookieUtil {
             String cookieName = getNonceCookieName(context);
             FrameworkUtils.removeCookie(request, response, cookieName);
             context.removeProperty(cookieName);
+        }
+    }
+
+    /**
+     * Clear all existing session cookies in the browser.
+     *
+     * @param request HttpServletRequest
+     * @param response HttpServletResponse
+     */
+    private static void removeExistingNonceCookies(HttpServletRequest request, HttpServletResponse response) {
+
+        Cookie[] cookies = request.getCookies();
+        if (cookies == null) {
+            return;
+        }
+        for (Cookie cookie : cookies) {
+            String cookieName = cookie.getName();
+            if (StringUtils.isNotEmpty(cookieName) && cookieName.startsWith(NONCE_COOKIE)) {
+                FrameworkUtils.removeCookie(request, response, cookieName);
+            }
         }
     }
 

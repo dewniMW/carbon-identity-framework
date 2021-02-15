@@ -804,6 +804,18 @@
             {% endfor %}
         </AllowedScopes>
         {% endif %}
+
+        {% if oauth.drop_unregistered_scopes is defined %}
+        <!--
+        By enabling this config, any unregistered scopes(excluding internal scopes and allowed scopes)
+        passed in a OAuth based authz request will be dropped.
+        Default value : false
+        -->
+        <DropUnregisteredScopes>{{oauth.drop_unregistered_scopes}}</DropUnregisteredScopes>
+        {% endif %}
+        {% if oauth.client_id_validation_regex is defined %}
+        <ClientIdValidationRegex>{{oauth.client_id_validation_regex}}</ClientIdValidationRegex>
+        {% endif %}
     </OAuth>
 
     <MultifactorAuthentication>
@@ -1030,6 +1042,20 @@
                 <smsOtp>
                     <Regex>{{identity_mgt.password_reset_sms.sms_otp_regex}}</Regex>
                 </smsOtp>
+                <!-- Email channel specific properties can be added here. -->
+                <Email>
+                <!--
+                    This property was introduced to keep the email confirmation code tolerance time period value of the
+                    password recovery scenario. This can be configured in minutes and must be lower that confirmation
+                    code expiry time. If the following requests to a corresponding user for password recovery or
+                    resend confirmation code within this configured value, the existing confirmation code will be
+                    send again in the email. If this was not configured, a default value of zero (0) will be set
+                    from internally.
+                -->
+                {% if identity_mgt.password_reset_email.confirmation_code_tolerance_period is defined %}
+                    <ConfirmationCodeTolerancePeriod>{{identity_mgt.password_reset_email.confirmation_code_tolerance_period}}</ConfirmationCodeTolerancePeriod>
+                {% endif %}
+                </Email>
             </Password>
             <Username>
                 <Enable>{{identity_mgt.username_recovery.email.enable_username_recovery}}</Enable>
@@ -1126,22 +1152,26 @@
         </VerificationCode>
         <CallbackRegex>{{identity_mgt.user_self_registration.callback_url}}</CallbackRegex>
         <ResendConfirmationReCaptcha>{{identity_mgt.user_self_registration.enable_resend_confirmation_recaptcha}}</ResendConfirmationReCaptcha>
+        <AutoLogin>
+            <Enable>{{identity_mgt.user_self_registration.auto_login.enable}}</Enable>
+            <AliasName>{{identity_mgt.user_self_registration.auto_login.alias_name}}</AliasName>
+        </AutoLogin>
     </SelfRegistration>
 
     <LiteRegistration>
-            <Enable>{{identity_mgt.lite_user_registration.enable}}</Enable>
-            <LockOnCreation>{{identity_mgt.lite_user_registration.lock_on_creation}}</LockOnCreation>
-            <Notification>
-                <InternallyManage>{{identity_mgt.lite_user_registration.notification.manage_internally}}</InternallyManage>
-            </Notification>
-            <ReCaptcha>{{identity_mgt.lite_user_registration.recaptcha.enable}}</ReCaptcha>
-            <VerificationCode>
-                <ExpiryTime>{{identity_mgt.lite_user_registration.verification_email_validity}}</ExpiryTime>
-                <SMSOTP>
-                    <ExpiryTime>{{identity_mgt.lite_user_registration.verification_sms_validity}}</ExpiryTime>
-                </SMSOTP>
-            </VerificationCode>
-            <CallbackRegex>{{identity_mgt.lite_user_registration.callback_url}}</CallbackRegex>
+        <Enable>{{identity_mgt.lite_user_registration.enable}}</Enable>
+        <LockOnCreation>{{identity_mgt.lite_user_registration.lock_on_creation}}</LockOnCreation>
+        <Notification>
+            <InternallyManage>{{identity_mgt.lite_user_registration.notification.manage_internally}}</InternallyManage>
+        </Notification>
+        <ReCaptcha>{{identity_mgt.lite_user_registration.recaptcha.enable}}</ReCaptcha>
+        <VerificationCode>
+            <ExpiryTime>{{identity_mgt.lite_user_registration.verification_email_validity}}</ExpiryTime>
+            <SMSOTP>
+                <ExpiryTime>{{identity_mgt.lite_user_registration.verification_sms_validity}}</ExpiryTime>
+            </SMSOTP>
+        </VerificationCode>
+        <CallbackRegex>{{identity_mgt.lite_user_registration.callback_url}}</CallbackRegex>
     </LiteRegistration>
 
     <LoginIdentifiers>
@@ -2205,7 +2235,11 @@
             <Permissions>/permission/admin/manage/identity/cors/origins/view</Permissions>
             <Scopes>internal_cors_origins_view</Scopes>
         </Resource>
-        <Resource context="(.*)/api/server/v1/configs" secured="true" http-method="GET">
+        <Resource context="(.*)/api/server/v1/configs/home-realm-identifiers" secured="true" http-method="GET">
+            <Permissions>none</Permissions>
+            <Scopes>internal_login</Scopes>
+        </Resource>
+        <Resource context="(.*)/api/server/v1/configs/(.*)" secured="true" http-method="GET">
             <Permissions>none</Permissions>
             <Scopes>internal_login</Scopes>
         </Resource>
@@ -2321,6 +2355,8 @@
     <EnableFederatedUserAssociation>{{user.association.enable_for_federated_users}}</EnableFederatedUserAssociation>
 
     <EnableTenantQualifiedUrls>{{tenant_context.enable_tenant_qualified_urls}}</EnableTenantQualifiedUrls>
+
+    <EnableTenantedSessions>{{tenant_context.enable_tenanted_sessions | default(false)}}</EnableTenantedSessions>
 
 
     <!--
@@ -2590,4 +2626,16 @@
         <DefaultUrl>{{common_auth_caller_path.default_url}}</DefaultUrl>
         {% endif %}
     </CommonAuthCallerPath>
+
+    <!-- Cookies to invalidate during authentication flow failures. -->
+    <CookiesToInvalidate>
+        	<Cookie name="commonAuthId"/>
+        	<Cookie name="opbs"/>
+        	<Cookie name="pastr"/>
+        	<Cookie name="sessionNonceCookie"/>
+        	<Cookie name="ALOR"/>
+        	{% for cookie in cookies_to_invalidate.cookie_names %}
+        	<Cookie name="{{cookie}}"/>
+        	{% endfor %}
+    </CookiesToInvalidate>
 </Server>
